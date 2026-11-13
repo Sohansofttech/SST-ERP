@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum InstitutionType {
+  SCHOOL
+  COLLEGE
+  OTHER
+}
+
+enum InstitutionStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum PlatformRole {
+  NONE
+  SUPER_ADMIN
+}
+
+model Institution {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String            @unique
+  type      InstitutionType
+  status    InstitutionStatus @default(PENDING)
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  country   String            @default("India")
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  memberships InstitutionMembership[]
+  roles       Role[]
+  auditLogs   AuditLog[]
+
+  @@index([status])
+  @@index([type])
+}
+
+model User {
+  // Must match the UUID from Supabase Auth.
+  id              String       @id @db.Uuid
+  name            String
+  email           String       @unique
+  phone           String?
+  status          UserStatus   @default(ACTIVE)
+  platformRole    PlatformRole @default(NONE)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  memberships InstitutionMembership[]
+  auditLogs   AuditLog[]
+
+  @@index([status])
+  @@index([platformRole])
+}
+
+model InstitutionMembership {
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String           @db.Uuid
+  institutionId String           @db.Uuid
+  status        MembershipStatus @default(INVITED)
+  joinedAt      DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  roles       MembershipRole[]
+
+  @@unique([userId, institutionId])
+  @@unique([id, institutionId])
+  @@index([institutionId, status])
+}
+
+model Role {
+  id            String   @id @default(uuid()) @db.Uuid
+  institutionId String   @db.Uuid
+  name          String
+  code          String
+  description   String?
+  isSystem      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  institution Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  memberships MembershipRole[]
+  permissions RolePermission[]
+
+  @@unique([institutionId, code])
+  @@unique([id, institutionId])
+  @@index([institutionId])
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  code        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+}
+
+model MembershipRole {
+  membershipId  String   @db.Uuid
+  roleId        String   @db.Uuid
+  institutionId String   @db.Uuid
+  assignedAt    DateTime @default(now())
+
+  membership InstitutionMembership @relation(fields: [membershipId, institutionId], references: [id, institutionId], onDelete: Cascade)
+  role       Role                  @relation(fields: [roleId, institutionId], references: [id, institutionId], onDelete: Cascade)
+
+  @@id([membershipId, roleId])
+  @@index([roleId, institutionId])
+}
+
+model RolePermission {
+  roleId       String   @db.Uuid
+  permissionId String   @db.Uuid
+  assignedAt   DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  institutionId String?  @db.Uuid
+  userId        String?  @db.Uuid
+  action        String
+  entity        String
+  entityId      String?
+  metadata      Json?
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+
+  institution Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([institutionId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}
