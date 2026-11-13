@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Menu, School, User as UserIcon } from "lucide-react";
+import { Menu, School, User as UserIcon, LogOut } from "lucide-react";
 import { NotificationDropdown } from "../shared/NotificationDropdown";
 import { ChildSelector } from "../shared/ChildSelector";
 import { Badge } from "../shared/Badge";
@@ -25,6 +25,14 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectChild,
   onMenuToggle,
 }) => {
+  const handleLogout = async () => {
+    try {
+      document.cookie = "sst_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      window.location.href = "/login";
+    } catch {
+      window.location.href = "/login";
+    }
+  };
   return (
     <header className="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] shadow-sm flex items-center justify-between px-4 sm:px-6">
       {/* Left side: Mobile Toggle & Institution Breadcrumb */}
@@ -76,6 +84,15 @@ export const Header: React.FC<HeaderProps> = ({
             </p>
             <p className="text-[11px] text-[#64748B] capitalize">{userRole.toLowerCase()}</p>
           </div>
+
+          <button
+            onClick={handleLogout}
+            title="Log Out"
+            className="p-1.5 text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEE2E2]/60 rounded-lg transition-colors ml-1"
+            aria-label="Log Out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>

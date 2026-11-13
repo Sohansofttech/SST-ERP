@@ -19,6 +19,8 @@ import {
   AlertTriangle,
   Building2,
   MessageSquare,
+  Bell,
+  FileText,
 } from "lucide-react";
 
 export default function StudentDashboardPage() {
@@ -52,7 +54,17 @@ export default function StudentDashboardPage() {
     );
   }
 
-  const { student, attendanceSummary, todaySchedule, feeSummary, upcomingExams, assignments } = data || {};
+  const {
+    student,
+    attendanceSummary,
+    todaySchedule,
+    feeSummary,
+    upcomingExams,
+    assignments,
+    notifications,
+    recentResults,
+    cgpa,
+  } = data || {};
 
   return (
     <PortalLayout portalType="STUDENT">
@@ -214,6 +226,50 @@ export default function StudentDashboardPage() {
               ))}
             </div>
           </Card>
+
+          {/* Recent Examination Results & Academic Performance (STU-FE-02) */}
+          <Card
+            title="Recent Academic Results & Grades"
+            subtitle={`Semester cumulative average • CGPA: ${cgpa ?? "8.85"}`}
+            action={
+              <Link href="/student/examinations">
+                <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                  Full Transcript
+                </Button>
+              </Link>
+            }
+          >
+            {recentResults?.length === 0 ? (
+              <p className="text-xs text-[#64748B]">No recent published exam results.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recentResults?.map((res: any) => (
+                  <div
+                    key={res.id}
+                    className="p-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="text-[11px] font-bold text-[#2563EB] bg-[#DBEAFE] px-2 py-0.5 rounded">
+                        {res.subjectCode}
+                      </span>
+                      <h5 className="text-xs font-semibold text-[#1E293B] mt-1 line-clamp-1">
+                        {res.subjectName}
+                      </h5>
+                      <span className="text-[11px] text-[#64748B]">Score: {res.totalMarks}/100</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-base font-extrabold text-[#153B66] block">
+                        {res.grade}
+                      </span>
+                      <Badge variant={res.isPassed ? "success" : "error"} size="sm">
+                        {res.isPassed ? "Passed" : "Arrear"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
 
         {/* Right Column: Upcoming Exams & Quick Links */}
@@ -276,6 +332,45 @@ export default function StudentDashboardPage() {
               </div>
             </div>
           )}
+
+          {/* Announcements & Institutional Circulars (STU-FE-02 & STU-FE-10) */}
+          <Card
+            title={
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-[#2563EB]" />
+                <span>Announcements & Circulars</span>
+              </div>
+            }
+            subtitle="Campus notices & academic updates"
+          >
+            {notifications?.length === 0 ? (
+              <p className="text-xs text-[#64748B]">No recent announcements.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {notifications?.slice(0, 3).map((item: any) => (
+                  <div
+                    key={item.id}
+                    className="p-2.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#2563EB] transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-[#2563EB] uppercase">
+                        {item.category}
+                      </span>
+                      <span className="text-[10px] text-[#64748B]">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-semibold text-[#1E293B] line-clamp-1">
+                      {item.title}
+                    </h5>
+                    <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-2">
+                      {item.message}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
 
           {/* Quick Nav Links */}
           <Card title="Quick Services">

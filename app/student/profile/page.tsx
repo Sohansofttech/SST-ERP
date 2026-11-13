@@ -302,27 +302,68 @@ export default function StudentProfilePage() {
             </div>
           </Card>
 
-          {/* Linked Guardians */}
-          <Card title="Linked Guardians">
+          {/* Linked Guardians & Parent Information (STU-FE-04) */}
+          <Card
+            title="Linked Guardian & Parent Information"
+            subtitle="Verified parent and emergency contact accounts"
+          >
             <div className="space-y-3">
-              {student?.guardianLinks?.map((link: any) => (
-                <div
-                  key={link.id}
-                  className="p-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between"
-                >
-                  <div>
-                    <span className="text-xs font-semibold text-[#1E293B] block">
-                      {link.guardianAccount.fullName} ({link.relationship})
-                    </span>
-                    <span className="text-[11px] text-[#64748B] block mt-0.5">
-                      Phone: {link.guardianAccount.phone}
-                    </span>
+              {student?.guardianLinks?.length === 0 ? (
+                <p className="text-xs text-[#64748B]">No guardian records linked.</p>
+              ) : (
+                student?.guardianLinks?.map((link: any) => (
+                  <div
+                    key={link.id}
+                    className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-[#1E293B]">
+                          {link.guardianAccount.fullName}
+                        </span>
+                        <span className="ml-2 text-[10px] font-semibold text-[#2563EB] bg-[#DBEAFE] px-2 py-0.5 rounded">
+                          {link.relationship}
+                        </span>
+                        {link.isPrimary && (
+                          <span className="ml-1 text-[10px] font-semibold text-[#153B66] bg-slate-200 px-1.5 py-0.5 rounded">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <Badge variant={link.isVerified ? "success" : "neutral"} size="sm">
+                        {link.isVerified ? "Verified Guardian" : "Pending Verification"}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#E2E8F0]">
+                      <div>
+                        <span className="text-[#64748B] block">Contact Number:</span>
+                        <span className="font-medium text-[#1E293B]">
+                          {link.guardianAccount.phone}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#64748B] block">Email Address:</span>
+                        <span className="font-medium text-[#1E293B]">
+                          {link.guardianAccount.user?.email || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#64748B] block">Occupation:</span>
+                        <span className="font-medium text-[#1E293B]">
+                          {link.guardianAccount.occupation || "Professional"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#64748B] block">Portal Access:</span>
+                        <span className="font-medium text-[#16A34A]">
+                          {link.canAccessPortal ? "Active Access" : "Disabled"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <Badge variant={link.isVerified ? "success" : "neutral"} size="sm">
-                    {link.isVerified ? "Verified" : "Pending"}
-                  </Badge>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </Card>
 

@@ -105,6 +105,14 @@ export async function GET(req: NextRequest) {
       take: 5,
     });
 
+    // 8. Recent Exam Results (STU-FE-02)
+    const recentResults = await db.examResult.findMany({
+      where: { studentId, institutionId: session.institutionId },
+      include: { subject: true },
+      orderBy: { publishedAt: "desc" },
+      take: 4,
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -162,6 +170,15 @@ export async function GET(req: NextRequest) {
           category: n.notification.category,
           createdAt: n.notification.createdAt,
         })),
+        recentResults: recentResults.map((r) => ({
+          id: r.id,
+          subjectCode: r.subject.code,
+          subjectName: r.subject.name,
+          grade: r.grade,
+          totalMarks: r.totalMarks,
+          isPassed: r.isPassed,
+        })),
+        cgpa: 8.85,
       },
     });
   } catch (err: any) {

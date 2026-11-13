@@ -12,7 +12,7 @@ export default function AttendancePage() {
   const [data, setData] = useState<any>(null);
   const [inOutLogs, setInOutLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"SUBJECT_WISE" | "DAILY_HISTORY" | "IN_OUT">("SUBJECT_WISE");
+  const [tab, setTab] = useState<"SUBJECT_WISE" | "MONTHLY" | "DAILY_HISTORY" | "IN_OUT">("SUBJECT_WISE");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,7 +42,7 @@ export default function AttendancePage() {
     );
   }
 
-  const { summary, subjectWise, dailyHistory, absenceHistory } = data || {};
+  const { summary, subjectWise, monthlyAttendance, dailyHistory, absenceHistory } = data || {};
 
   return (
     <PortalLayout portalType="STUDENT" pageTitle="Attendance & Campus In/Out Register">
@@ -91,6 +91,16 @@ export default function AttendancePage() {
           }`}
         >
           Subject-Wise Attendance
+        </button>
+        <button
+          onClick={() => setTab("MONTHLY")}
+          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+            tab === "MONTHLY"
+              ? "bg-[#153B66] text-white"
+              : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
+          }`}
+        >
+          Monthly Attendance
         </button>
         <button
           onClick={() => setTab("DAILY_HISTORY")}
@@ -163,6 +173,76 @@ export default function AttendancePage() {
               );
             })}
           </div>
+        </Card>
+      )}
+
+      {tab === "MONTHLY" && (
+        <Card
+          title="Monthly Attendance Summary (STU-FE-06)"
+          subtitle="Monthly session attendance tracking and academic percentage"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {monthlyAttendance?.map((m: any) => {
+              const isGood = m.percentage >= 75;
+              return (
+                <div
+                  key={m.monthYear}
+                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-[#153B66]">{m.monthYear}</span>
+                    <Badge variant={isGood ? "success" : "error"} size="sm">
+                      {isGood ? "Eligible" : "Shortage"}
+                    </Badge>
+                  </div>
+                  <div className="text-2xl font-extrabold text-[#1E293B] mb-1">
+                    {m.percentage}%
+                  </div>
+                  <p className="text-xs text-[#64748B]">
+                    {m.attendedClasses} attended / {m.totalClasses} total
+                  </p>
+                  <div className="mt-3 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        isGood ? "bg-[#16A34A]" : "bg-[#DC2626]"
+                      }`}
+                      style={{ width: `${Math.min(100, m.percentage)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Table
+            columns={[
+              { header: "Academic Month", accessorKey: "monthYear" },
+              { header: "Total Classes", accessorKey: "totalClasses" },
+              { header: "Attended", accessorKey: "attendedClasses" },
+              { header: "Absences", accessorKey: "absentClasses" },
+              {
+                header: "Monthly Percentage",
+                cell: (item: any) => (
+                  <span
+                    className={`font-bold ${
+                      item.percentage >= 75 ? "text-[#16A34A]" : "text-[#DC2626]"
+                    }`}
+                  >
+                    {item.percentage}%
+                  </span>
+                ),
+              },
+              {
+                header: "Standing",
+                cell: (item: any) => (
+                  <Badge variant={item.percentage >= 75 ? "success" : "error"} size="sm">
+                    {item.percentage >= 75 ? "Satisfactory" : "Attendance Warning"}
+                  </Badge>
+                ),
+              },
+            ]}
+            data={monthlyAttendance || []}
+          />
         </Card>
       )}
 

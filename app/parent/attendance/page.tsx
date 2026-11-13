@@ -35,7 +35,7 @@ export default function ParentAttendancePage() {
     if (selectedChildId) fetchAttendance(selectedChildId);
   }, [selectedChildId]);
 
-  const { summary, subjectWise, absenceHistory } = data || {};
+  const { summary, subjectWise, monthlyAttendance, absenceHistory } = data || {};
 
   return (
     <PortalLayout
@@ -70,6 +70,37 @@ export default function ParentAttendancePage() {
       </div>
 
       <div className="space-y-6">
+        {/* Monthly Attendance Breakdown (STU-FE-06) */}
+        <Card
+          title="Monthly Attendance Summary"
+          subtitle="Progressive monthly session tracking"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {monthlyAttendance?.map((m: any) => {
+              const isGood = m.percentage >= 75;
+              return (
+                <div
+                  key={m.monthYear}
+                  className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-[#153B66]">{m.monthYear}</span>
+                    <Badge variant={isGood ? "success" : "error"} size="sm">
+                      {isGood ? "Eligible" : "Shortage"}
+                    </Badge>
+                  </div>
+                  <div className="text-xl font-extrabold text-[#1E293B]">
+                    {m.percentage}%
+                  </div>
+                  <p className="text-[11px] text-[#64748B] mt-0.5">
+                    {m.attendedClasses} of {m.totalClasses} classes
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
         {/* Subject wise breakdown */}
         <Card title="Subject-Wise Attendance Breakdown">
           <div className="space-y-3">

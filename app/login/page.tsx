@@ -2,30 +2,61 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, User, Users, Lock, School, AlertCircle } from "lucide-react";
+import {
+  ShieldCheck,
+  User,
+  Users,
+  Lock,
+  School,
+  AlertCircle,
+  KeyRound,
+  Smartphone,
+  CheckCircle2,
+} from "lucide-react";
 import { Button } from "@/components/shared/Button";
 import { FormInput } from "@/components/shared/FormInput";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [authMethod, setAuthMethod] = useState<"PASSWORD" | "OTP">("PASSWORD");
+  const [roleMode, setRoleMode] = useState<"STUDENT" | "PARENT">("STUDENT");
   const [email, setEmail] = useState("john.doe@student.apex.edu");
   const [password, setPassword] = useState("Student@123");
-  const [roleMode, setRoleMode] = useState<"STUDENT" | "PARENT">("STUDENT");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const setStudentDemo = () => {
     setRoleMode("STUDENT");
     setEmail("john.doe@student.apex.edu");
     setPassword("Student@123");
+    setOtp("");
+    setOtpSent(false);
     setError(null);
+    setInfoMessage(null);
   };
 
   const setParentDemo = () => {
     setRoleMode("PARENT");
     setEmail("robert.doe@parent.apex.edu");
     setPassword("Parent@123");
+    setOtp("");
+    setOtpSent(false);
     setError(null);
+    setInfoMessage(null);
+  };
+
+  const handleSendOtp = () => {
+    if (!email) {
+      setError("Please enter your registered email address first.");
+      return;
+    }
+    setError(null);
+    setOtpSent(true);
+    setOtp("123456"); // Pre-fill or suggest demo OTP
+    setInfoMessage("Verification OTP sent! For testing, use demo OTP: 123456");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,10 +65,21 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      const payload: any = {
+        email,
+        loginType: authMethod,
+      };
+
+      if (authMethod === "PASSWORD") {
+        payload.password = password;
+      } else {
+        payload.otp = otp;
+      }
+
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
@@ -80,7 +122,7 @@ export default function LoginPage() {
           {/* Quick Demo Selector */}
           <div className="mb-6 p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
             <p className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider mb-2">
-              Quick One-Click Demo Logins
+              Quick One-Click Demo Credentials
             </p>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -110,6 +152,44 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {/* Authentication Method Switcher: Password vs OTP (STU-FE-01) */}
+          <div className="mb-6">
+            <div className="flex bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMethod("PASSWORD");
+                  setError(null);
+                  setInfoMessage(null);
+                }}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  authMethod === "PASSWORD"
+                    ? "bg-white text-[#153B66] shadow-sm"
+                    : "text-[#64748B] hover:text-[#1E293B]"
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Password Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMethod("OTP");
+                  setError(null);
+                  setInfoMessage(null);
+                }}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  authMethod === "OTP"
+                    ? "bg-white text-[#153B66] shadow-sm"
+                    : "text-[#64748B] hover:text-[#1E293B]"
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>OTP Login</span>
+              </button>
+            </div>
+          </div>
+
           {error && (
             <div className="mb-4 p-3 bg-[#FEE2E2] border border-[#FECACA] rounded-lg text-xs text-[#DC2626] flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -117,9 +197,16 @@ export default function LoginPage() {
             </div>
           )}
 
+          {infoMessage && (
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0" />
+              <span>{infoMessage}</span>
+            </div>
+          )}
+
           <form className="space-y-4" onSubmit={handleSubmit}>
             <FormInput
-              label="Institutional Email Address"
+              label="Institutional Email / Identifier"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -127,31 +214,83 @@ export default function LoginPage() {
               required
             />
 
-            <FormInput
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  defaultChecked
-                  className="h-4 w-4 text-[#2563EB] focus:ring-[#2563EB] border-[#E2E8F0] rounded"
+            {authMethod === "PASSWORD" ? (
+              <>
+                <FormInput
+                  label="Password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
-                <label htmlFor="remember-me" className="ml-2 block text-[#64748B]">
-                  Remember session
-                </label>
+
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center">
+                    <input
+                      id="remember-me"
+                      name="remember-me"
+                      type="checkbox"
+                      defaultChecked
+                      className="h-4 w-4 text-[#2563EB] focus:ring-[#2563EB] border-[#E2E8F0] rounded"
+                    />
+                    <label htmlFor="remember-me" className="ml-2 block text-[#64748B]">
+                      Remember session
+                    </label>
+                  </div>
+                  <span className="text-[#2563EB] font-medium hover:underline cursor-pointer">
+                    Forgot password?
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[13px] font-medium text-[#1E293B]">
+                    6-Digit One-Time Password (OTP)
+                  </label>
+                  {!otpSent ? (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      className="text-xs font-semibold text-[#2563EB] hover:underline"
+                    >
+                      Send OTP Code
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      className="text-xs text-[#64748B] hover:underline"
+                    >
+                      Resend OTP
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="Enter 6-digit OTP"
+                    className="w-full px-3.5 py-2 text-sm tracking-widest font-mono text-center border border-[#E2E8F0] rounded-lg focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 bg-white"
+                    required
+                  />
+                  {!otpSent && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSendOtp}
+                      className="shrink-0"
+                    >
+                      Request OTP
+                    </Button>
+                  )}
+                </div>
               </div>
-              <span className="text-[#2563EB] font-medium hover:underline cursor-pointer">
-                Forgot password?
-              </span>
-            </div>
+            )}
 
             <Button
               type="submit"
@@ -174,4 +313,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

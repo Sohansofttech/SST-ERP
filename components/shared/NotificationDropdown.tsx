@@ -48,7 +48,7 @@ export const NotificationDropdown: React.FC = () => {
 
   const markRead = async (id: string) => {
     try {
-      await fetch("/api/shared/notifications/read", {
+      await fetch("/api/shared/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationRecipientId: id }),

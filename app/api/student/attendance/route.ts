@@ -61,6 +61,34 @@ export async function GET(req: NextRequest) {
       percentage: stats.total > 0 ? Math.round((stats.attended / stats.total) * 100) : 100,
     }));
 
+    // Group by Month (STU-FE-06)
+    const monthMap = new Map<string, { month: string; year: number; total: number; attended: number }>();
+    records.forEach((r) => {
+      const d = new Date(r.date);
+      const monthYear = d.toLocaleString("default", { month: "long", year: "numeric" });
+      const existing = monthMap.get(monthYear) || {
+        month: d.toLocaleString("default", { month: "long" }),
+        year: d.getFullYear(),
+        total: 0,
+        attended: 0,
+      };
+      existing.total += 1;
+      if (r.status === "PRESENT" || r.status === "EXCUSED") {
+        existing.attended += 1;
+      }
+      monthMap.set(monthYear, existing);
+    });
+
+    const monthlyAttendance = Array.from(monthMap.entries()).map(([monthYear, stats]) => ({
+      monthYear,
+      month: stats.month,
+      year: stats.year,
+      totalClasses: stats.total,
+      attendedClasses: stats.attended,
+      absentClasses: stats.total - stats.attended,
+      percentage: stats.total > 0 ? Math.round((stats.attended / stats.total) * 100) : 100,
+    }));
+
     const absenceHistory = records
       .filter((r) => r.status === "ABSENT" || r.status === "LATE")
       .map((r) => ({
@@ -83,6 +111,7 @@ export async function GET(req: NextRequest) {
           overallPercentage,
         },
         subjectWise,
+        monthlyAttendance,
         dailyHistory: records.map((r) => ({
           id: r.id,
           date: r.date,

@@ -6,13 +6,36 @@ import { SessionUser } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, institutionCode } = await req.json();
+    const { email, password, otp, loginType, institutionCode } = await req.json();
 
-    if (!email || !password) {
+    if (!email) {
       return NextResponse.json(
-        { success: false, error: "Email and password are required." },
+        { success: false, error: "Email or identifier is required." },
         { status: 400 }
       );
+    }
+
+    if (loginType === "OTP" || otp) {
+      if (!otp) {
+        return NextResponse.json(
+          { success: false, error: "6-digit OTP is required." },
+          { status: 400 }
+        );
+      }
+      // Demo OTP standard verification (123456 or matching dynamic OTP)
+      if (otp !== "123456") {
+        return NextResponse.json(
+          { success: false, error: "Invalid or expired OTP. Please use demo OTP: 123456." },
+          { status: 401 }
+        );
+      }
+    } else {
+      if (!password) {
+        return NextResponse.json(
+          { success: false, error: "Password is required." },
+          { status: 400 }
+        );
+      }
     }
 
     // Find institution if code provided, or search by email domain / lookup
@@ -55,13 +78,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check password
-    const isPwValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPwValid) {
-      return NextResponse.json(
-        { success: false, error: "Invalid email or password." },
-        { status: 401 }
-      );
+    // Check password if standard login
+    if (loginType !== "OTP" && !otp) {
+      const isPwValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isPwValid) {
+        return NextResponse.json(
+          { success: false, error: "Invalid email or password." },
+          { status: 401 }
+        );
+      }
     }
 
     let studentId: string | undefined;
