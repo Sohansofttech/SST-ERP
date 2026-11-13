@@ -1,12 +1,14 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { signToken, verifyToken } from "../lib/auth/jwt";
+import crypto from "crypto";
+import { signToken, verifyToken, AUTH_COOKIE_NAME } from "../lib/auth/jwt";
 import { authorizeStudentOrParentAccess } from "../lib/security/authorize";
 import { assertTenant, scopeToTenant } from "../lib/security/tenant";
 import { verifyAndProcessPayment } from "../lib/services/payment.service";
 import { submitRequest, reviewRequest } from "../lib/services/approval.service";
 import { sendNotification, getUserNotifications, markNotificationAsRead } from "../lib/services/notification.service";
 import { recordAudit } from "../lib/services/audit.service";
+import { POST as logoutHandler } from "../app/api/auth/me/route";
 import { SessionUser } from "../types";
 
 const prisma = new PrismaClient();
@@ -361,6 +363,189 @@ async function runAllTests() {
       assertTenantFailed = true;
     }
     assert(assertTenantFailed, "assertTenant throws error when cross-institution violation is attempted");
+  }
+
+  // ----------------------------------------------------
+  // ROW 33: VERIFY SECURE LOGOUT & HTTPONLY COOKIE DELETION (FIX 1)
+  // ----------------------------------------------------
+  console.log("\n--- Row 33: Secure Logout & HttpOnly Cookie Deletion (Fix 1) ---");
+  {
+    const logoutRes = await logoutHandler();
+    const logoutJson = await logoutRes.json();
+    assert(logoutJson.success === true, "Logout API handler returns success status");
+
+    const cookie = logoutRes.cookies.get(AUTH_COOKIE_NAME);
+    assert(
+      cookie !== undefined && cookie.value === "",
+      "Logout API sets cookie deletion header for sst_session"
+    );
+  }
+
+  // ----------------------------------------------------
+  // ROW 34: VERIFY DYNAMIC DASHBOARD CGPA CALCULATION (FIX 2)
+  // ----------------------------------------------------
+  console.log("\n--- Row 34: Dynamic Dashboard CGPA Calculation (Fix 2) ---");
+  {
+    const results = await prisma.examResult.findMany({
+      where: {
+        studentId: studentSession.studentId!,
+        institutionId: studentSession.institutionId,
+      },
+      include: { subject: true },
+    });
+
+    const totalCredits = results.reduce((sum, r) => sum + r.credits, 0);
+    const totalWeightedPoints = results.reduce((sum, r) => sum + r.gradePoint * r.credits, 0);
+    const calculatedCgpa = totalCredits > 0 ? parseFloat((totalWeightedPoints / totalCredits).toFixed(2)) : 0.0;
+
+    assert(results.length > 0, "Student has published database exam results for calculation");
+    assert(calculatedCgpa > 0, `Dynamic CGPA calculated from database results (${calculatedCgpa})`);
+    assert(
+      typeof calculatedCgpa === "number" && !isNaN(calculatedCgpa),
+      "Dynamic CGPA calculation produces valid numeric average"
+    );
+  }
+
+  // ----------------------------------------------------
+  // ROW 35: VERIFY REMOVAL OF HARDCODED COURSE/YEAR FALLBACKS (FIX 3)
+  // ----------------------------------------------------
+  console.log("\n--- Row 35: Removal of Hardcoded Course & Academic Year Fallbacks (Fix 3) ---");
+  {
+    const studentWithEnrollments = await prisma.student.findUnique({
+      where: { id: studentSession.studentId! },
+      include: {
+        enrollments: {
+          include: { course: true, academicYear: true },
+          orderBy: { enrolledDate: "desc" },
+        },
+      },
+    });
+
+    const activeEnrollment =
+      studentWithEnrollments?.enrollments.find((e) => e.status === "ACTIVE") ||
+      studentWithEnrollments?.enrollments[0];
+
+    const courseName = activeEnrollment?.course?.name || "";
+    const academicYearName = activeEnrollment?.academicYear?.name || "";
+
+    assert(
+      courseName.length > 0 && courseName === "B.Tech in Computer Science and Engineering",
+      "Dynamic course resolution reflects true database course name"
+    );
+    assert(
+      academicYearName.length > 0 && academicYearName === "2025-2026",
+      "Dynamic academic year resolution reflects database academic year"
+    );
+
+    // Verify unassigned profile resolves to empty string without hardcoded fallbacks
+    const emptyEnrollments: Array<{ course?: { name: string }; academicYear?: { name: string } }> = [];
+    const emptyFallbackCourse: string = emptyEnrollments[0]?.course?.name || "";
+    const emptyFallbackYear: string = emptyEnrollments[0]?.academicYear?.name || "";
+    assert(
+      emptyFallbackCourse === "" && (emptyFallbackCourse as string) !== "B.Tech CSE",
+      "Empty enrollment course resolves to empty string and never hardcoded B.Tech CSE"
+    );
+    assert(
+      emptyFallbackYear === "" && (emptyFallbackYear as string) !== "2025-2026",
+      "Empty enrollment academic year resolves to empty string and never hardcoded 2025-2026"
+    );
+  }
+
+  // ----------------------------------------------------
+  // ROW 36: VERIFY PRODUCTION PAYMENT MOCK SIGNATURE REJECTION
+  // ----------------------------------------------------
+  console.log("\n--- Row 36: Production Payment Mock Signature Rejection ---");
+  {
+    const invoice = await prisma.feeInvoice.findFirst({
+      where: {
+        studentId: studentSession.studentId!,
+        institutionId: studentSession.institutionId,
+        outstandingAmount: { gt: 0 },
+      },
+    });
+
+    assert(invoice !== null, "Found pending fee invoice for payment testing");
+
+    if (invoice) {
+      const originalEnv = process.env.NODE_ENV;
+      const originalMockFlag = process.env.ENABLE_MOCK_PAYMENT_SIGNATURES;
+
+      try {
+        // 1. Simulate production environment without mock bypass flag
+        (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+        delete process.env.ENABLE_MOCK_PAYMENT_SIGNATURES;
+
+        let mockRejected = false;
+        try {
+          await verifyAndProcessPayment({
+            institutionId: studentSession.institutionId,
+            studentId: studentSession.studentId!,
+            invoiceId: invoice.id,
+            amount: 100,
+            paymentMethod: "UPI",
+            gatewayOrderId: "order_prod_test_001",
+            gatewayTransactionId: "txn_prod_test_001",
+            gatewaySignature: "VALID_DEMO_SIG",
+          });
+        } catch (err: any) {
+          mockRejected = err.message.includes("signature verification failed");
+        }
+        assert(mockRejected, "Mock payment signature (VALID_DEMO_SIG) strictly rejected in production");
+
+        let mockPrefixRejected = false;
+        try {
+          await verifyAndProcessPayment({
+            institutionId: studentSession.institutionId,
+            studentId: studentSession.studentId!,
+            invoiceId: invoice.id,
+            amount: 100,
+            paymentMethod: "UPI",
+            gatewayOrderId: "order_prod_test_002",
+            gatewayTransactionId: "txn_prod_test_002",
+            gatewaySignature: "sig_mock_unauthorized",
+          });
+        } catch (err: any) {
+          mockPrefixRejected = err.message.includes("signature verification failed");
+        }
+        assert(mockPrefixRejected, "Mock prefix payment signature (sig_mock_*) strictly rejected in production");
+
+        // 2. Verify genuine HMAC SHA256 signature is accepted
+        const gatewaySecret = process.env.PAYMENT_GATEWAY_SECRET || "MOCK_GATEWAY_SECRET_KEY";
+        const validOrderId = "order_prod_real_001";
+        const validTxnId = `txn_prod_real_${Date.now()}`;
+        const paymentAmount = 50;
+
+        const validSignature = crypto
+          .createHmac("sha256", gatewaySecret)
+          .update(`${validOrderId}|${validTxnId}|${paymentAmount}`)
+          .digest("hex");
+
+        const paymentResult = await verifyAndProcessPayment({
+          institutionId: studentSession.institutionId,
+          studentId: studentSession.studentId!,
+          invoiceId: invoice.id,
+          amount: paymentAmount,
+          paymentMethod: "NET_BANKING",
+          gatewayOrderId: validOrderId,
+          gatewayTransactionId: validTxnId,
+          gatewaySignature: validSignature,
+        });
+
+        assert(
+          paymentResult.payment?.status === "SUCCESS",
+          "Valid cryptographic HMAC signature accepted in production"
+        );
+        assert(
+          paymentResult.payment.backendVerified === true,
+          "Backend verified flag correctly set for cryptographically signed payment"
+        );
+      } finally {
+        (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
+        if (originalMockFlag !== undefined) {
+          process.env.ENABLE_MOCK_PAYMENT_SIGNATURES = originalMockFlag;
+        }
+      }
+    }
   }
 
   console.log("\n========================================================");

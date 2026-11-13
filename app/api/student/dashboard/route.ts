@@ -18,13 +18,13 @@ export async function GET(req: NextRequest) {
 
     const { studentId } = await authorizeStudentOrParentAccess(session, requestedStudentId);
 
-    // 1. Student details and active enrollment
+    // 1. Student details and enrollment
     const student = await db.student.findUnique({
       where: { id: studentId },
       include: {
         enrollments: {
-          where: { status: "ACTIVE" },
           include: { course: true, academicYear: true },
+          orderBy: { enrolledDate: "desc" },
         },
       },
     });
@@ -32,6 +32,11 @@ export async function GET(req: NextRequest) {
     if (!student) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
+
+    const activeEnrollment =
+      student.enrollments.find((e) => e.status === "ACTIVE") || student.enrollments[0];
+    const courseName = activeEnrollment?.course?.name || "";
+    const academicYearName = activeEnrollment?.academicYear?.name || "";
 
     // 2. Attendance summary
     const allAttendance = await db.attendanceRecord.findMany({
@@ -105,13 +110,18 @@ export async function GET(req: NextRequest) {
       take: 5,
     });
 
-    // 8. Recent Exam Results (STU-FE-02)
-    const recentResults = await db.examResult.findMany({
+    // 8. Exam Results & Dynamic CGPA Calculation (STU-FE-02)
+    const allResults = await db.examResult.findMany({
       where: { studentId, institutionId: session.institutionId },
       include: { subject: true },
       orderBy: { publishedAt: "desc" },
-      take: 4,
     });
+
+    const totalCredits = allResults.reduce((sum, r) => sum + r.credits, 0);
+    const totalWeightedPoints = allResults.reduce((sum, r) => sum + r.gradePoint * r.credits, 0);
+    const dynamicCgpa = totalCredits > 0 ? parseFloat((totalWeightedPoints / totalCredits).toFixed(2)) : 0.0;
+
+    const recentResults = allResults.slice(0, 4);
 
     return NextResponse.json({
       success: true,
@@ -124,8 +134,8 @@ export async function GET(req: NextRequest) {
           admissionNumber: student.admissionNumber,
           currentSemester: student.currentSemester,
           currentSection: student.currentSection,
-          course: student.enrollments[0]?.course?.name || "B.Tech CSE",
-          academicYear: student.enrollments[0]?.academicYear?.name || "2025-2026",
+          course: courseName,
+          academicYear: academicYearName,
         },
         attendanceSummary: {
           totalClasses,
@@ -178,7 +188,7 @@ export async function GET(req: NextRequest) {
           totalMarks: r.totalMarks,
           isPassed: r.isPassed,
         })),
-        cgpa: 8.85,
+        cgpa: dynamicCgpa,
       },
     });
   } catch (err: any) {

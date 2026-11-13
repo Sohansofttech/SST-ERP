@@ -27,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const handleLogout = async () => {
     try {
-      document.cookie = "sst_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      await fetch("/api/auth/me", { method: "POST" });
       window.location.href = "/login";
     } catch {
       window.location.href = "/login";

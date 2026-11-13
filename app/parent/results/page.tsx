@@ -51,7 +51,7 @@ export default function ParentResultsPage() {
             Cumulative Grade Point (CGPA)
           </p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-[#153B66]">{cgpa || "8.85"}</span>
+            <span className="text-3xl font-extrabold text-[#153B66]">{cgpa || "N/A"}</span>
             <span className="text-xs text-[#64748B]">/ 10.00</span>
           </div>
           <Badge variant="success" size="sm" className="mt-2 w-fit">

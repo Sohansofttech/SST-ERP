@@ -230,7 +230,7 @@ export default function StudentDashboardPage() {
           {/* Recent Examination Results & Academic Performance (STU-FE-02) */}
           <Card
             title="Recent Academic Results & Grades"
-            subtitle={`Semester cumulative average • CGPA: ${cgpa ?? "8.85"}`}
+            subtitle={`Semester cumulative average • CGPA: ${cgpa !== undefined ? cgpa : "N/A"}`}
             action={
               <Link href="/student/examinations">
                 <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>

@@ -273,7 +273,7 @@ export default function StudentProfilePage() {
               <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
                 <p className="text-[#64748B]">Current Academic Year</p>
                 <p className="font-bold text-[#153B66] text-sm">
-                  {enrollment?.academicYear?.name || "2025-2026"}
+                  {enrollment?.academicYear?.name || "N/A"}
                 </p>
               </div>
               <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">

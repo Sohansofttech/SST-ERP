@@ -73,16 +73,21 @@ export async function verifyAndProcessPayment(input: VerifyPaymentInput) {
   }
 
   // Verify backend signature hash (simulating payment gateway secret verification)
+  const gatewaySecret = process.env.PAYMENT_GATEWAY_SECRET || "MOCK_GATEWAY_SECRET_KEY";
   const expectedSignature = crypto
-    .createHmac("sha256", "MOCK_GATEWAY_SECRET_KEY")
+    .createHmac("sha256", gatewaySecret)
     .update(`${gatewayOrderId}|${gatewayTransactionId}|${amount}`)
     .digest("hex");
 
-  // In production, signature must match. For test mock flows, accept standard mock signature or generated signature
+  // In production, mock signatures (sig_mock_ or VALID_DEMO_SIG) must be strictly rejected
+  const isProduction = process.env.NODE_ENV === "production";
+  const allowMockSignatures = !isProduction || process.env.ENABLE_MOCK_PAYMENT_SIGNATURES === "true";
+
+  const isMockSignature =
+    Boolean(gatewaySignature?.startsWith("sig_mock_")) || gatewaySignature === "VALID_DEMO_SIG";
+
   const isSignatureValid =
-    gatewaySignature === expectedSignature ||
-    gatewaySignature?.startsWith("sig_mock_") ||
-    gatewaySignature === "VALID_DEMO_SIG";
+    gatewaySignature === expectedSignature || (allowMockSignatures && isMockSignature);
 
   if (!isSignatureValid) {
     throw new Error("Payment signature verification failed. Untrusted payment attempt rejected.");

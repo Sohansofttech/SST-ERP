@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
       where: { id: studentId },
       include: {
         enrollments: {
-          where: { status: "ACTIVE" },
           include: { course: true },
+          orderBy: { enrolledDate: "desc" },
         },
       },
     });
@@ -28,6 +28,9 @@ export async function GET(req: NextRequest) {
     if (!student) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
+
+    const activeEnrollment =
+      student.enrollments.find((e) => e.status === "ACTIVE") || student.enrollments[0];
 
     // 1. Upcoming exam schedules and timetables
     const examSchedules = await db.examSchedule.findMany({
@@ -93,7 +96,7 @@ export async function GET(req: NextRequest) {
                 name: `${student.firstName} ${student.lastName}`,
                 rollNumber: student.rollNumber,
                 admissionNumber: student.admissionNumber,
-                course: student.enrollments[0]?.course?.name || "B.Tech CSE",
+                course: activeEnrollment?.course?.name || "",
                 semester: student.currentSemester,
               },
             }
