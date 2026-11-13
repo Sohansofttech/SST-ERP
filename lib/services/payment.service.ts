@@ -164,9 +164,8 @@ export async function verifyAndProcessPayment(input: VerifyPaymentInput) {
     title: `Fee Payment Confirmed: ${receiptNumber}`,
     message: `Payment of ₹${amount.toLocaleString()} for ${invoice.title} was successfully verified. Receipt ${receiptNumber} generated.`,
     category: "FEE",
-    recipientUserIds: [invoice.student.userId],
+    recipientUserIds: invoice.student.userId ? [invoice.student.userId] : [],
   });
 
   return result;
 }
-

@@ -29,4 +29,3 @@ export async function getStudentDocuments(studentId: string) {
     orderBy: { uploadedAt: "desc" },
   });
 }
-

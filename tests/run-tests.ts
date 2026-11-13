@@ -10,8 +10,11 @@ import { sendNotification, getUserNotifications, markNotificationAsRead } from "
 import { recordAudit } from "../lib/services/audit.service";
 import { POST as logoutHandler } from "../app/api/auth/me/route";
 import { SessionUser } from "../types";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/postgres";
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
 let passed = 0;
 let failed = 0;
@@ -64,30 +67,30 @@ async function runAllTests() {
   const studentSession: SessionUser = {
     userId: studentUser.id,
     email: studentUser.email,
-    fullName: studentUser.fullName,
+    fullName: studentUser.fullName || studentUser.name || "",
     role: "STUDENT",
-    institutionId: studentUser.institutionId,
-    institutionName: studentUser.institution.name,
+    institutionId: studentUser.institutionId || "",
+    institutionName: studentUser.institution?.name || "",
     studentId: studentUser.studentProfile!.id,
   };
 
   const parentSession: SessionUser = {
     userId: parentUser.id,
     email: parentUser.email,
-    fullName: parentUser.fullName,
+    fullName: parentUser.fullName || parentUser.name || "",
     role: "PARENT",
-    institutionId: parentUser.institutionId,
-    institutionName: parentUser.institution.name,
+    institutionId: parentUser.institutionId || "",
+    institutionName: parentUser.institution?.name || "",
     guardianId: parentUser.guardianAccount!.id,
   };
 
   const horizonStudentSession: SessionUser = {
     userId: horizonStudentUser.id,
     email: horizonStudentUser.email,
-    fullName: horizonStudentUser.fullName,
+    fullName: horizonStudentUser.fullName || horizonStudentUser.name || "",
     role: "STUDENT",
-    institutionId: horizonStudentUser.institutionId,
-    institutionName: horizonStudentUser.institution.name,
+    institutionId: horizonStudentUser.institutionId || "",
+    institutionName: horizonStudentUser.institution?.name || "",
     studentId: horizonStudentUser.studentProfile!.id,
   };
 
@@ -96,13 +99,13 @@ async function runAllTests() {
   // ----------------------------------------------------
   console.log("--- Row 22: Student Authentication & Session Handling ---");
   {
-    const isStudentPwValid = await bcrypt.compare("Student@123", studentUser.passwordHash);
+    const isStudentPwValid = await bcrypt.compare("Student@123", studentUser.passwordHash!);
     assert(isStudentPwValid, "Student login credential verification succeeds");
 
-    const isParentPwValid = await bcrypt.compare("Parent@123", parentUser.passwordHash);
+    const isParentPwValid = await bcrypt.compare("Parent@123", parentUser.passwordHash!);
     assert(isParentPwValid, "Parent login credential verification succeeds");
 
-    const isInvalidPwValid = await bcrypt.compare("WrongPassword!", studentUser.passwordHash);
+    const isInvalidPwValid = await bcrypt.compare("WrongPassword!", studentUser.passwordHash!);
     assert(!isInvalidPwValid, "Invalid login credentials correctly rejected");
 
     // Token creation and verification

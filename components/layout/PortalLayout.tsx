@@ -81,4 +81,3 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     </div>
   );
 };
-

@@ -67,4 +67,3 @@ export async function authorizeStudentOrParentAccess(
 
   throw new ForbiddenError("Unauthorized role for student data access.");
 }
-

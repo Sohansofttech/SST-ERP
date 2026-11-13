@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     records.forEach((r) => {
       const existing = subjectMap.get(r.subjectId) || {
-        code: r.subject.code,
+        code: r.subject.code || "",
         name: r.subject.name,
         total: 0,
         attended: 0,
@@ -130,4 +130,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

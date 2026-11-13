@@ -456,7 +456,7 @@ async function main() {
     { day: "MONDAY", sub: subOs, start: "10:15", end: "11:15", room: "LH-201" },
     { day: "MONDAY", sub: subCn, start: "11:30", end: "12:30", room: "LH-203" },
     { day: "MONDAY", sub: subSe, start: "13:30", end: "14:30", room: "LH-201" },
-    
+
     { day: "TUESDAY", sub: subOs, start: "09:00", end: "10:00", room: "LH-201" },
     { day: "TUESDAY", sub: subDbms, start: "10:15", end: "11:15", room: "LH-201" },
     { day: "TUESDAY", sub: subCloud, start: "11:30", end: "12:30", room: "LH-Lab 4" },
@@ -487,7 +487,7 @@ async function main() {
         section: "A",
         subjectId: slot.sub.id,
         teacherId: teacher1.id,
-        dayOfWeek: slot.day,
+        dayOfWeek: slot.day as any,
         startTime: slot.start,
         endTime: slot.end,
         roomNumber: slot.room,

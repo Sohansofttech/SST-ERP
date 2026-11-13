@@ -36,4 +36,3 @@ export async function recordAudit(params: CreateAuditLogParams) {
     // Don't crash main operation if audit insert fails, but log error
   }
 }
-

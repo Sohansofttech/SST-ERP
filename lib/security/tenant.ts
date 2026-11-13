@@ -26,4 +26,3 @@ export function scopeToTenant<T extends Record<string, any>>(
     institutionId: session.institutionId,
   };
 }
-

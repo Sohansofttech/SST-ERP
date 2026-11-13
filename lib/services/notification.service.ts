@@ -84,4 +84,3 @@ export async function markNotificationAsRead(recipientId: string, userId: string
     },
   });
 }
-

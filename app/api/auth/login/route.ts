@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     // Check password if standard login
     if (loginType !== "OTP" && !otp) {
-      const isPwValid = await bcrypt.compare(password, user.passwordHash);
+      const isPwValid = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
       if (!isPwValid) {
         return NextResponse.json(
           { success: false, error: "Invalid email or password." },
@@ -118,10 +118,10 @@ export async function POST(req: NextRequest) {
     const sessionUser: SessionUser = {
       userId: user.id,
       email: user.email,
-      fullName: user.fullName,
-      role: user.role as any,
-      institutionId: user.institutionId,
-      institutionName: user.institution.name,
+      fullName: user.fullName || user.name || "",
+      role: (user.role as any) || "STUDENT",
+      institutionId: user.institutionId || "",
+      institutionName: user.institution?.name || "",
       studentId,
       guardianId,
       activeChildId,
@@ -163,4 +163,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         institutionId: session.institutionId,
         semester: student.currentSemester,
         section: student.currentSection,
-        dayOfWeek: currentDay === "SUNDAY" ? "MONDAY" : currentDay,
+        dayOfWeek: (currentDay === "SUNDAY" ? "MONDAY" : currentDay) as any,
       },
       include: {
         subject: true,
@@ -198,4 +198,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

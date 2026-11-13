@@ -201,4 +201,3 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
     </Modal>
   );
 };
-
