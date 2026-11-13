@@ -46,6 +46,18 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Team Member 3: Institution Admin Portal Design Tokens */
+  --color-primary-navy: #153B66;
+  --color-primary-blue: #2563EB;
+  --color-secondary-teal: #14B8A6;
+  --color-bg-main: #F8FAFC;
+  --color-card-bg: #FFFFFF;
+  --color-text-primary: #1E293B;
+  --color-text-secondary: #64748B;
+  --color-status-success: #16A34A;
+  --color-status-warning: #F59E0B;
+  --color-status-error: #DC2626;
 }
 
 :root {
@@ -81,6 +93,18 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Team Member 3: Institution Admin Portal Tokens */
+  --primary-navy: #153B66;
+  --primary-blue: #2563EB;
+  --secondary-teal: #14B8A6;
+  --bg-main: #F8FAFC;
+  --card-bg: #FFFFFF;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --status-success: #16A34A;
+  --status-warning: #F59E0B;
+  --status-error: #DC2626;
 }
 
 .dark {
