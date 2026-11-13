@@ -1,5 +1,4 @@
 import "server-only";
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 
 export type DashboardDemoData = {
   statistics: {
@@ -25,7 +24,7 @@ export type DashboardDemoData = {
 };
 
 export function isDashboardDemoEnabled() {
-  return isDevelopmentBypassEnabled() && process.env.SUPER_ADMIN_DASHBOARD_DEMO === "true";
+  return process.env.NODE_ENV === "development" && process.env.SUPER_ADMIN_DASHBOARD_DEMO === "true";
 }
 
 function daysAgo(days: number) {
