@@ -19,10 +19,25 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
   } });
   if (!institution) notFound();
   const features = await prisma.platformFeature.findMany({ where: { isAvailable: true }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 200 });
+  const editableInstitution = {
+    id: institution.id,
+    name: institution.name,
+    code: institution.code,
+    slug: institution.slug,
+    type: institution.type,
+    email: institution.email,
+    phone: institution.phone,
+    address: institution.address,
+    city: institution.city,
+    state: institution.state,
+    postalCode: institution.postalCode,
+    country: institution.country,
+    website: institution.website,
+  };
   return <div className="sa-module-page"><Link href="/admin/institutions" className="sa-small-link">← Institution Management</Link><div className="sa-page-intro"><div><h2>{institution.name}</h2><p>{institution.code ?? institution.slug} · registered {institution.createdAt.toLocaleDateString("en-IN")}</p></div><span className={`sa-status-badge sa-status-${institution.status.toLowerCase()}`}>{institution.status}</span></div>
     {institution.archivedAt && <p className="sa-form-message sa-warning-box">Archived on {institution.archivedAt.toLocaleDateString("en-IN")}.</p>}
     {!institution.archivedAt && <div className="sa-action-row"><form action={updateInstitutionStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={institution.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"} /><button className="sa-button sa-button-secondary">{institution.status === "ACTIVE" ? "Suspend institution" : "Activate institution"}</button></form><form action={archiveInstitution}><input type="hidden" name="id" value={id} /><button className="sa-button sa-button-danger">Archive institution</button></form></div>}
-    <h3 className="sa-section-title">Institution details</h3><EditInstitutionForm institution={institution} />
+    <h3 className="sa-section-title">Institution details</h3><EditInstitutionForm institution={editableInstitution} />
     <div className="sa-module-grid"><section className="sa-card sa-module-panel"><h3>Institution administrators & members</h3>{institution.memberships.length ? institution.memberships.map((membership) => <div className="sa-detail-row" key={membership.id}><strong>{membership.user.name}</strong><span>{membership.user.email} · {membership.status}</span></div>) : <p className="sa-muted-copy">No members are associated with this institution.</p>}</section>
     <section className="sa-card sa-module-panel"><h3>Subscriptions</h3>{institution.subscriptions.length ? institution.subscriptions.map((subscription) => <div className="sa-detail-row" key={subscription.id}><strong>{subscription.plan.name}</strong><span>{subscription.status} · started {subscription.startsAt.toLocaleDateString("en-IN")}</span></div>) : <p className="sa-muted-copy">No subscription records are available.</p>}</section>
     <section className="sa-card sa-module-panel"><h3>Recorded usage</h3>{institution.usageMetrics.length ? institution.usageMetrics.map((metric) => <div className="sa-detail-row" key={metric.id}><strong>{metric.metric}: {metric.value.toString()} {metric.unit}</strong><span>Measured {metric.measuredAt.toLocaleString("en-IN")} · {metric.source}</span></div>) : <p className="sa-muted-copy">No usage measurements have been recorded.</p>}</section>
