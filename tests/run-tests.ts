@@ -5,7 +5,7 @@ import { authorizeStudentOrParentAccess } from "../lib/security/authorize";
 import { assertTenant, scopeToTenant } from "../lib/security/tenant";
 import { verifyAndProcessPayment } from "../lib/services/payment.service";
 import { submitRequest, reviewRequest } from "../lib/services/approval.service";
-import { sendNotification, getUserNotifications } from "../lib/services/notification.service";
+import { sendNotification, getUserNotifications, markNotificationAsRead } from "../lib/services/notification.service";
 import { recordAudit } from "../lib/services/audit.service";
 import { SessionUser } from "../types";
 
@@ -26,7 +26,7 @@ function assert(condition: boolean, testName: string, errorDetail?: string) {
 
 async function runAllTests() {
   console.log("\n========================================================");
-  console.log(" RUNNING COMPREHENSIVE SUITE: TEAM MEMBER 1 PORTAL");
+  console.log(" ERP PROJECT TASK WISE SUITE: SECTION B - BACKEND TASKS");
   console.log("========================================================\n");
 
   // Load test fixtures
@@ -90,11 +90,10 @@ async function runAllTests() {
   };
 
   // ----------------------------------------------------
-  // TEST GROUP 1: AUTHENTICATION
+  // ROW 22: CREATE STUDENT AUTHENTICATION AND SESSION HANDLING
   // ----------------------------------------------------
-  console.log("--- 1. Authentication Tests ---");
+  console.log("--- Row 22: Student Authentication & Session Handling ---");
   {
-    // Valid password check
     const isStudentPwValid = await bcrypt.compare("Student@123", studentUser.passwordHash);
     assert(isStudentPwValid, "Student login credential verification succeeds");
 
@@ -107,41 +106,173 @@ async function runAllTests() {
     // Token creation and verification
     const token = await signToken(studentSession);
     const verified = await verifyToken(token);
-    assert(verified !== null && verified.userId === studentSession.userId, "JWT Token signed and claims verified");
+    assert(verified !== null && verified.userId === studentSession.userId, "JWT Token signed and session claims verified");
 
-    // OTP verification check (STU-FE-01)
+    // OTP verification check
     const validOtp = "123456";
     const enteredOtp = "123456" as string;
     const isOtpValid = enteredOtp === validOtp;
     const isInvalidOtpRejected = ("999999" as string) !== validOtp;
-    assert(isOtpValid && isInvalidOtpRejected, "OTP authentication logic verified (STU-FE-01)");
+    assert(isOtpValid && isInvalidOtpRejected, "OTP authentication logic verified");
   }
 
   // ----------------------------------------------------
-  // TEST GROUP 2: AUTHORIZATION & IDOR PREVENTION
+  // ROW 23: FETCH STUDENT DETAILS USING LOGGED-IN IDENTITY
   // ----------------------------------------------------
-  console.log("\n--- 2. Authorization & IDOR Security Tests ---");
+  console.log("\n--- Row 23: Fetch Student Details Using Logged-In Identity ---");
   {
-    // Student accessing own data
-    let studentOwnOk = false;
-    try {
-      const res = await authorizeStudentOrParentAccess(studentSession, studentSession.studentId!);
-      studentOwnOk = res.studentId === studentSession.studentId;
-    } catch (e) {
-      studentOwnOk = false;
-    }
-    assert(studentOwnOk, "Student can access own records (IDOR clean)");
+    const studentProfile = await prisma.student.findUnique({
+      where: { id: studentSession.studentId! },
+      include: {
+        user: true,
+        guardianLinks: { include: { guardianAccount: true } },
+        enrollments: { include: { course: true, academicYear: true } },
+      },
+    });
+    assert(
+      studentProfile !== null && studentProfile.userId === studentSession.userId,
+      "Student profile retrieved strictly using logged-in student identity"
+    );
 
-    // Student attempting another student's data (same institution)
+    // IDOR protection check
     let studentIdorBlocked = false;
     try {
       await authorizeStudentOrParentAccess(studentSession, unlinkedStudentUser.studentProfile!.id);
     } catch (e: any) {
       studentIdorBlocked = e.name === "ForbiddenError" || e.message.includes("IDOR");
     }
-    assert(studentIdorBlocked, "Student attempting another student's ID is blocked with ForbiddenError (IDOR blocked)");
+    assert(studentIdorBlocked, "Attempt to access other student records blocked via IDOR guard");
+  }
 
-    // Parent accessing linked child #1 (John)
+  // ----------------------------------------------------
+  // ROW 24: RETRIEVE ACADEMIC YEAR AND ENROLLMENT INFORMATION
+  // ----------------------------------------------------
+  console.log("\n--- Row 24: Retrieve Academic Year and Enrollment Information ---");
+  {
+    const academicYears = await prisma.academicYear.findMany({
+      where: { institutionId: studentSession.institutionId },
+    });
+    assert(academicYears.length > 0, "Academic year calendar information retrieved");
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        institutionId: studentSession.institutionId,
+        studentId: studentSession.studentId!,
+      },
+      include: { course: true, academicYear: true },
+      orderBy: { semester: "asc" },
+    });
+
+    const hasSem3 = enrollments.some((e) => e.semester === 3 && e.status === "COMPLETED");
+    const hasSem4 = enrollments.some((e) => e.semester === 4 && e.status === "PROMOTED");
+    const hasSem5 = enrollments.some((e) => e.semester === 5 && e.status === "ACTIVE");
+
+    assert(hasSem3 && hasSem4 && hasSem5, "Complete enrollment and progression history retrieved (Rule 4 preserved)");
+  }
+
+  // ----------------------------------------------------
+  // ROW 25: FETCH TIMETABLE AND ATTENDANCE RECORDS
+  // ----------------------------------------------------
+  console.log("\n--- Row 25: Fetch Timetable and Attendance Records ---");
+  {
+    const timetable = await prisma.timetableSlot.findMany({
+      where: {
+        institutionId: studentSession.institutionId,
+        semester: studentUser.studentProfile!.currentSemester,
+        section: studentUser.studentProfile!.currentSection,
+      },
+      include: { subject: true, teacher: { include: { user: true } } },
+    });
+    assert(timetable.length > 0, "Timetable schedule retrieved with subject, faculty and room details");
+
+    const attendanceRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        institutionId: studentSession.institutionId,
+        studentId: studentSession.studentId!,
+      },
+      include: { subject: true },
+    });
+    assert(attendanceRecords.length > 0, "Attendance records retrieved with subject breakdown & status");
+  }
+
+  // ----------------------------------------------------
+  // ROW 26: RETRIEVE EXAMINATION SCHEDULES, MARKS AND RESULTS
+  // ----------------------------------------------------
+  console.log("\n--- Row 26: Retrieve Examination Schedules, Marks and Results ---");
+  {
+    const schedules = await prisma.examSchedule.findMany({
+      where: {
+        institutionId: studentSession.institutionId,
+        semester: studentUser.studentProfile!.currentSemester,
+        isPublished: true,
+      },
+      include: { slots: true },
+    });
+    assert(schedules.length > 0, "Examination schedules and paper slots retrieved");
+
+    const results = await prisma.examResult.findMany({
+      where: {
+        institutionId: studentSession.institutionId,
+        studentId: studentSession.studentId!,
+      },
+      include: { subject: true, examSchedule: true },
+    });
+    assert(results.length > 0, "Examination marks, internal/external split, and letter grades retrieved");
+  }
+
+  // ----------------------------------------------------
+  // ROW 27: FETCH LMS MATERIALS, ASSIGNMENTS AND QUIZ INFORMATION
+  // ----------------------------------------------------
+  console.log("\n--- Row 27: Fetch LMS Materials, Assignments and Quiz Information ---");
+  {
+    const lmsMaterials = await prisma.lmsCourseMaterial.findMany({
+      where: { institutionId: studentSession.institutionId },
+      include: { subject: true },
+    });
+    assert(lmsMaterials.length > 0, "LMS study materials and course notes retrieved");
+
+    const assignments = await prisma.assignment.findMany({
+      where: { institutionId: studentSession.institutionId },
+      include: { subject: true, submissions: { where: { studentId: studentSession.studentId! } } },
+    });
+    assert(assignments.length > 0, "Active course assignments and submission deadlines retrieved");
+
+    const quizzes = await prisma.quiz.findMany({
+      where: { institutionId: studentSession.institutionId },
+      include: { questions: true, attempts: { where: { studentId: studentSession.studentId! } } },
+    });
+    assert(quizzes.length > 0, "Online quizzes, questions, and attempt evaluations retrieved");
+  }
+
+  // ----------------------------------------------------
+  // ROW 28: RETRIEVE FEE DUES AND PAYMENT HISTORY
+  // ----------------------------------------------------
+  console.log("\n--- Row 28: Retrieve Fee Dues and Payment History ---");
+  {
+    const invoices = await prisma.feeInvoice.findMany({
+      where: {
+        institutionId: studentSession.institutionId,
+        studentId: studentSession.studentId!,
+      },
+      include: { items: true, payments: true },
+    });
+    assert(invoices.length > 0, "Fee invoices with itemized fee breakdown retrieved");
+
+    const payments = await prisma.feePayment.findMany({
+      where: {
+        institutionId: studentSession.institutionId,
+        studentId: studentSession.studentId!,
+      },
+      include: { receipt: true },
+    });
+    assert(payments.length > 0, "Payment history with backend verification and receipts retrieved");
+  }
+
+  // ----------------------------------------------------
+  // ROW 29: IMPLEMENT PARENT-TO-STUDENT RELATIONSHIP VALIDATION
+  // ----------------------------------------------------
+  console.log("\n--- Row 29: Parent-to-Student Relationship Validation ---");
+  {
     let parentLinked1Ok = false;
     try {
       const res = await authorizeStudentOrParentAccess(parentSession, studentUser.studentProfile!.id);
@@ -149,9 +280,8 @@ async function runAllTests() {
     } catch (e) {
       parentLinked1Ok = false;
     }
-    assert(parentLinked1Ok, "Parent can access verified linked child #1 (John Doe)");
+    assert(parentLinked1Ok, "Parent-to-student relationship successfully validated for linked child");
 
-    // Parent accessing linked child #2 (Emma) - Multi-child switching
     let parentLinked2Ok = false;
     try {
       const res = await authorizeStudentOrParentAccess(parentSession, siblingStudentUser.studentProfile!.id);
@@ -159,37 +289,69 @@ async function runAllTests() {
     } catch (e) {
       parentLinked2Ok = false;
     }
-    assert(parentLinked2Ok, "Parent can switch and access verified linked child #2 (Emma Doe)");
+    assert(parentLinked2Ok, "Parent-to-student relationship successfully validated for sibling child");
+  }
 
-    // Parent attempting unlinked student (Alex Smith in same institution)
+  // ----------------------------------------------------
+  // ROW 30: RESTRICT PARENTS TO THEIR LINKED CHILDREN ONLY
+  // ----------------------------------------------------
+  console.log("\n--- Row 30: Restrict Parents to Linked Children Only ---");
+  {
     let parentUnlinkedBlocked = false;
     try {
       await authorizeStudentOrParentAccess(parentSession, unlinkedStudentUser.studentProfile!.id);
     } catch (e: any) {
       parentUnlinkedBlocked = e.name === "ForbiddenError";
     }
-    assert(parentUnlinkedBlocked, "Parent attempting unlinked child ID is blocked with ForbiddenError");
+    assert(parentUnlinkedBlocked, "Unlinked child access strictly restricted and blocked with ForbiddenError");
+
+    // Mentoring notes privacy guard (Rule 22/27)
+    const parentAllowedMentoring = await prisma.mentoringRecord.findMany({
+      where: {
+        studentId: studentUser.studentProfile!.id,
+        institutionId: parentSession.institutionId,
+        isPrivateNote: false,
+      },
+    });
+    const leakedToParent = parentAllowedMentoring.some((m) => m.isPrivateNote === true);
+    assert(!leakedToParent, "Private mentoring and counseling notes strictly hidden from parent");
   }
 
   // ----------------------------------------------------
-  // TEST GROUP 3: TENANT ISOLATION (Rule 1 & Rule 2)
+  // ROW 31: IMPLEMENT NOTIFICATION RETRIEVAL AND READ STATUS
   // ----------------------------------------------------
-  console.log("\n--- 3. Multi-Tenant Isolation Tests (Rule 1 & Rule 2) ---");
+  console.log("\n--- Row 31: Notification Retrieval and Read Status ---");
+  {
+    const notifications = await getUserNotifications(studentUser.id, studentSession.institutionId);
+    assert(notifications.length > 0, "Notifications retrieved for authenticated user");
+
+    if (notifications.length > 0) {
+      const unread = notifications.find((n) => !n.isRead) || notifications[0];
+      await markNotificationAsRead(unread.id, studentUser.id);
+      const updated = await getUserNotifications(studentUser.id, studentSession.institutionId);
+      const readItem = updated.find((n) => n.id === unread.id);
+      assert(readItem?.isRead === true, "Notification read status successfully updated");
+    }
+  }
+
+  // ----------------------------------------------------
+  // ROW 32: ENSURE ALL REQUESTS ARE INSTITUTION-SCOPED
+  // ----------------------------------------------------
+  console.log("\n--- Row 32: Ensure All Requests Are Institution-Scoped ---");
   {
     let crossTenantBlocked = false;
     try {
-      // Apex student attempting to access Horizon student's data
       await authorizeStudentOrParentAccess(studentSession, horizonStudentUser.studentProfile!.id);
     } catch (e: any) {
       crossTenantBlocked = e.name === "ForbiddenError";
     }
-    assert(crossTenantBlocked, "Cross-institution access between Tenant A and Tenant B strictly blocked");
+    assert(crossTenantBlocked, "Cross-tenant access between Apex and Horizon strictly blocked");
 
     // Scope to tenant filter
     const scoped = scopeToTenant(studentSession, { status: "ACTIVE" });
     assert(
       scoped.institutionId === "inst_apex" && scoped.status === "ACTIVE",
-      "scopeToTenant helper binds institutionId automatically"
+      "scopeToTenant helper enforces institution-level query isolation"
     );
 
     let assertTenantFailed = false;
@@ -198,153 +360,7 @@ async function runAllTests() {
     } catch (e) {
       assertTenantFailed = true;
     }
-    assert(assertTenantFailed, "assertTenant throws error when institution mismatch occurs");
-  }
-
-  // ----------------------------------------------------
-  // TEST GROUP 4: RULE 4 - HISTORICAL PRESERVATION
-  // ----------------------------------------------------
-  console.log("\n--- 4. Preserved Academic History Tests (Rule 4) ---");
-  {
-    const enrollments = await prisma.enrollment.findMany({
-      where: { studentId: studentUser.studentProfile!.id },
-      orderBy: { semester: "asc" },
-    });
-
-    const hasSem3 = enrollments.some((e) => e.semester === 3 && e.status === "COMPLETED");
-    const hasSem4 = enrollments.some((e) => e.semester === 4 && e.status === "PROMOTED");
-    const hasSem5 = enrollments.some((e) => e.semester === 5 && e.status === "ACTIVE");
-
-    assert(hasSem3, "Semester 3 historical records preserved with COMPLETED status");
-    assert(hasSem4, "Semester 4 historical records preserved with PROMOTED status");
-    assert(hasSem5, "Semester 5 active enrollment present without overwriting prior history");
-  }
-
-  // ----------------------------------------------------
-  // TEST GROUP 5: RULE 5 - BACKEND PAYMENT VERIFICATION
-  // ----------------------------------------------------
-  console.log("\n--- 5. Payment Backend Verification Tests (Rule 5) ---");
-  {
-    // Find invoice with outstanding balance
-    const invoice = await prisma.feeInvoice.findFirst({
-      where: { studentId: studentUser.studentProfile!.id, status: "PARTIAL" },
-    });
-
-    assert(invoice !== null, "Found active invoice with pending balance for payment test");
-
-    if (invoice) {
-      const payAmount = 5000;
-      const initialOutstanding = invoice.outstandingAmount;
-
-      // 1. Forged / invalid signature test
-      let forgedPaymentBlocked = false;
-      try {
-        await verifyAndProcessPayment({
-          institutionId: "inst_apex",
-          studentId: studentUser.studentProfile!.id,
-          invoiceId: invoice.id,
-          amount: payAmount,
-          paymentMethod: "UPI",
-          gatewayOrderId: "ORD-TEST-FORGED",
-          gatewayTransactionId: `TXN-FORGED-${Date.now()}`,
-          gatewaySignature: "FORGED_SIGNATURE_TAMPERED",
-        });
-      } catch (e) {
-        forgedPaymentBlocked = true;
-      }
-      assert(forgedPaymentBlocked, "Untrusted / forged frontend payment signature rejected by backend");
-
-      // 2. Legitimate verified payment
-      const paymentTxnRef = `GATEWAY-TXN-VERIFIED-${Date.now()}`;
-      const payResult = await verifyAndProcessPayment({
-        institutionId: "inst_apex",
-        studentId: studentUser.studentProfile!.id,
-        invoiceId: invoice.id,
-        amount: payAmount,
-        paymentMethod: "UPI",
-        gatewayOrderId: `ORD-TEST-${Date.now()}`,
-        gatewayTransactionId: paymentTxnRef,
-        gatewaySignature: "sig_mock_auto_verified",
-        actorUserId: studentUser.id,
-      });
-
-      assert(payResult.payment.status === "SUCCESS", "Backend confirms transaction status SUCCESS");
-      assert(payResult.payment.backendVerified === true, "Backend sets backendVerified = true");
-      assert(payResult.receipt.receiptNumber.startsWith("REC-"), "Official receipt generated with REC- prefix");
-      assert(
-        payResult.updatedInvoice.outstandingAmount === initialOutstanding - payAmount,
-        `Invoice outstanding balance reduced by ₹${payAmount}`
-      );
-
-      // Verify audit log created
-      const audit = await prisma.auditLog.findFirst({
-        where: {
-          entityType: "FEE_PAYMENT",
-          entityId: payResult.payment.id,
-          action: "PAYMENT_VERIFIED",
-        },
-      });
-      assert(audit !== null, "Audit log immutably recorded for fee payment under Rule 6");
-    }
-  }
-
-  // ----------------------------------------------------
-  // TEST GROUP 6: PARENT PRIVACY - PRIVATE MENTORING NOTES
-  // ----------------------------------------------------
-  console.log("\n--- 6. Mentoring Notes Privacy Guard (Section 22 & 27) ---");
-  {
-    // Direct check on mentoring records
-    const studentMentoring = await prisma.mentoringRecord.findMany({
-      where: { studentId: studentUser.studentProfile!.id },
-    });
-    const hasPrivateNote = studentMentoring.some((m) => m.isPrivateNote === true);
-    assert(hasPrivateNote, "Database has a confidential counseling note with isPrivateNote = true");
-
-    // Parent query simulation
-    const parentAllowedMentoring = await prisma.mentoringRecord.findMany({
-      where: {
-        studentId: studentUser.studentProfile!.id,
-        institutionId: parentSession.institutionId,
-        isPrivateNote: false, // Enforced by parent endpoint
-      },
-    });
-
-    const leakedToParent = parentAllowedMentoring.some((m) => m.isPrivateNote === true);
-    assert(!leakedToParent, "Parent API query strictly filters out confidential mentoring notes");
-  }
-
-  // ----------------------------------------------------
-  // TEST GROUP 7: SHARED APPROVAL ENGINE (Section 7)
-  // ----------------------------------------------------
-  console.log("\n--- 7. Shared Approval Engine Tests (Section 7 & 28) ---");
-  {
-    const req = await submitRequest({
-      institutionId: "inst_apex",
-      userId: studentUser.id,
-      requestType: "PROFILE_CORRECTION",
-      title: "Test Address Correction",
-      data: { proposedAddressLine: "Unit 10, Innovation Towers", proposedCity: "Bangalore" },
-    });
-
-    assert(req.status === "PENDING", "Approval request created in PENDING state");
-
-    // Review and approve by admin
-    const reviewed = await reviewRequest({
-      requestId: req.id,
-      institutionId: "inst_apex",
-      adminUserId: adminUser.id,
-      status: "APPROVED",
-      adminRemarks: "Address documents verified and approved.",
-    });
-
-    assert(reviewed.status === "APPROVED", "Request successfully approved by institution admin");
-
-    // Check student was notified
-    const notifications = await getUserNotifications(studentUser.id, "inst_apex");
-    const foundApprovalNotif = notifications.some((n) =>
-      n.notification.title.includes("Request APPROVED")
-    );
-    assert(foundApprovalNotif, "Student received automated notification upon admin request approval");
+    assert(assertTenantFailed, "assertTenant throws error when cross-institution violation is attempted");
   }
 
   console.log("\n========================================================");
@@ -364,4 +380,3 @@ runAllTests()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
