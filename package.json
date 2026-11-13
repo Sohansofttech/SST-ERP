@@ -4,9 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "tsx tests/run-tests.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.6",
@@ -14,10 +20,12 @@
     "@prisma/client": "^7.10.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
+    "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.5.2",
     "dotenv": "^18.0.10",
+    "jose": "^5.9.6",
     "lucide-react": "^1.72.0",
     "next": "16.4.6",
     "pg": "^8.23.1",
@@ -32,6 +40,7 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
@@ -40,6 +49,7 @@
     "eslint-config-next": "16.4.6",
     "prisma": "^7.10.1",
     "tailwindcss": "4.3.3",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }
