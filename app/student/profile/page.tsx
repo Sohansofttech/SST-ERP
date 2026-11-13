@@ -38,11 +38,13 @@ export default function StudentProfilePage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [profileRes, requestsRes] = await fetch("/api/student/profile").then((r) => r.json()),
-        requestsJson = await fetch("/api/student/profile/requests").then((r) => r.json());
+      const [profileRes, requestsRes] = await Promise.all([
+        fetch("/api/student/profile").then((r) => r.json()),
+        fetch("/api/student/profile/requests").then((r) => r.json()),
+      ]);
 
       if (profileRes.success) setStudent(profileRes.data);
-      if (requestsJson.success) setRequests(requestsJson.data);
+      if (requestsRes.success) setRequests(requestsRes.data);
     } catch (err) {
       console.error(err);
     } finally {
