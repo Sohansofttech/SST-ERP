@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { Building2, Search } from "lucide-react";
 import { prisma } from "@/lib/super-admin/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@prisma/client";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { CreateInstitutionForm } from "@/components/super-admin/create-institution-form";
 
 const pageSize = 20;
 export const instant = false;
-async function fetchInstitutions(where: Prisma.InstitutionWhereInput, skip: number) {
-  return prisma.institution.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: pageSize, include: { _count: { select: { memberships: true, subscriptions: true } } } });
+async function fetchInstitutions(where: Prisma.PlatformInstitutionWhereInput, skip: number) {
+  return prisma.platformInstitution.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: pageSize, include: { _count: { select: { memberships: true, subscriptions: true } } } });
 }
 
 export default async function InstitutionsPage({ searchParams }: { searchParams: Promise<{ q?: string | string[]; page?: string | string[]; type?: string | string[]; status?: string | string[] }> }) {
@@ -32,7 +32,7 @@ export default async function InstitutionsPage({ searchParams }: { searchParams:
   try {
     [rows, total] = await Promise.all([
       fetchInstitutions(where, (page - 1) * pageSize),
-      prisma.institution.count({ where }),
+      prisma.platformInstitution.count({ where }),
     ]);
   } catch { unavailable = true; }
   return <div className="sa-module-page">

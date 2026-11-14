@@ -32,7 +32,7 @@ export async function signIn(_previousState: LoginState, formData: FormData): Pr
   }
 
   try {
-    await prisma.auditLog.create({ data: { userId: data.user.id, action: "SUPER_ADMIN_LOGIN", entity: "User", entityId: data.user.id, result: "SUCCESS", requestId: crypto.randomUUID() } });
+    await prisma.platformAuditLog.create({ data: { userId: data.user.id, action: "SUPER_ADMIN_LOGIN", entity: "User", entityId: data.user.id, result: "SUCCESS", requestId: crypto.randomUUID() } });
   } catch {
     await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
     return { error: "Sign-in could not be recorded. Try again after database access is restored." };

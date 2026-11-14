@@ -1,4 +1,5 @@
 ﻿import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { superAdminNavigation, type SuperAdminSection } from "@/components/super-admin/navigation-items";
@@ -20,6 +21,7 @@ export function generateStaticParams() {
 }
 
 export default async function SuperAdminModulePage({ params, searchParams }: { params: Promise<{ section: string }>; searchParams: Promise<{ q?: string | string[]; page?: string | string[] }> }) {
+  await connection();
   await requireSuperAdmin();
   const { section } = await params;
   const query = await searchParams;
@@ -71,7 +73,7 @@ export default async function SuperAdminModulePage({ params, searchParams }: { p
       }
       case "onboarding": {
         headers = ["Institution", "Type", "Registration status", "Onboarding stage", "Registered"];
-        const data = await prisma.institution.findMany({ where: { archivedAt: null }, orderBy: { createdAt: "desc" }, take: 100 });
+        const data = await prisma.platformInstitution.findMany({ where: { archivedAt: null }, orderBy: { createdAt: "desc" }, take: 100 });
         rows = data.map((item) => ({ __id: item.id, __stage: item.onboardingStage, Institution: item.name, Type: item.type, "Registration status": item.status, "Onboarding stage": item.onboardingStage, Registered: item.createdAt.toLocaleDateString("en-IN") }));
         emptyMessage = "No institutions are in the onboarding workflow yet."; break;
       }
@@ -85,7 +87,7 @@ export default async function SuperAdminModulePage({ params, searchParams }: { p
         headers = ["Institution", "Metric", "Value", "Unit", "Source", "Measured"];
         const [data, institutionData] = await Promise.all([
           prisma.institutionUsageMetric.findMany({ orderBy: { measuredAt: "desc" }, take: 100, include: { institution: { select: { name: true } } } }),
-          prisma.institution.findMany({ where: { archivedAt: null }, orderBy: { name: "asc" }, take: 500, include: { _count: { select: { memberships: { where: { status: "ACTIVE" } } } }, subscriptions: { where: { status: "ACTIVE", startsAt: { lte: new Date() }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, take: 1, orderBy: { startsAt: "desc" }, select: { plan: { select: { maxUsers: true, storageLimitMb: true } } } } } }),
+          prisma.platformInstitution.findMany({ where: { archivedAt: null }, orderBy: { name: "asc" }, take: 500, include: { _count: { select: { memberships: { where: { status: "ACTIVE" } } } }, subscriptions: { where: { status: "ACTIVE", startsAt: { lte: new Date() }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, take: 1, orderBy: { startsAt: "desc" }, select: { plan: { select: { maxUsers: true, storageLimitMb: true } } } } } }),
         ]);
         usageQuota = institutionData.map((item) => ({ Institution: item.name, "Active memberships": item._count.memberships, "User quota": item.subscriptions[0]?.plan.maxUsers ?? "No limit recorded", "Storage quota (MB)": item.subscriptions[0]?.plan.storageLimitMb?.toString() ?? "No limit recorded" }));
         rows = data.map((item) => ({ Institution: item.institution.name, Metric: item.metric, Value: item.value.toString(), Unit: item.unit, Source: item.source, Measured: item.measuredAt.toLocaleString("en-IN") }));
@@ -93,13 +95,13 @@ export default async function SuperAdminModulePage({ params, searchParams }: { p
       }
       case "users": {
         headers = ["Name", "Email", "Platform role", "Status", "Created"];
-        const data = await prisma.user.findMany({ orderBy: { createdAt: "desc" }, take: 100, select: { id: true, name: true, email: true, platformRole: true, status: true, createdAt: true } });
+        const data = await prisma.platformUser.findMany({ orderBy: { createdAt: "desc" }, take: 100, select: { id: true, name: true, email: true, platformRole: true, status: true, createdAt: true } });
         rows = data.map((user) => ({ __id: user.id, __name: user.name, __role: user.platformRole, __status: user.status, Name: user.name, Email: user.email, "Platform role": user.platformRole, Status: user.status, Created: user.createdAt.toLocaleDateString("en-IN") }));
         emptyMessage = "No platform user profiles are available."; break;
       }
       case "support": {
         headers = ["Ticket", "Subject", "Institution", "Assignee", "Priority", "Status", "Created"];
-        const [data, staff] = await Promise.all([prisma.supportTicket.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { institution: { select: { name: true } }, assignedTo: { select: { name: true, email: true } } } }), prisma.user.findMany({ where: { platformRole: "SUPER_ADMIN", status: "ACTIVE" }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" }, take: 100 })]);
+        const [data, staff] = await Promise.all([prisma.supportTicket.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { institution: { select: { name: true } }, assignedTo: { select: { name: true, email: true } } } }), prisma.platformUser.findMany({ where: { platformRole: "SUPER_ADMIN", status: "ACTIVE" }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" }, take: 100 })]);
         supportStaff = staff;
         rows = data.map((ticket) => ({ __id: ticket.id, __status: ticket.status, __priority: ticket.priority, __assignee: ticket.assignedTo?.email ?? "", Ticket: ticket.ticketNumber, Subject: ticket.subject, Institution: ticket.institution.name, Assignee: ticket.assignedTo?.name ?? "Unassigned", Priority: ticket.priority, Status: ticket.status, Created: ticket.createdAt.toLocaleDateString("en-IN") }));
         emptyMessage = "No support tickets are recorded."; break;
@@ -125,7 +127,7 @@ export default async function SuperAdminModulePage({ params, searchParams }: { p
       case "audit-logs": {
         headers = ["Time", "Actor", "Action", "Entity", "Result", "Request"];
         const where = search ? { OR: [{ action: { contains: search, mode: "insensitive" as const } }, { entity: { contains: search, mode: "insensitive" as const } }, { entityId: { contains: search, mode: "insensitive" as const } }, { requestId: { contains: search, mode: "insensitive" as const } }, { user: { email: { contains: search, mode: "insensitive" as const } } }] } : {};
-        const [data, count] = await Promise.all([prisma.auditLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (auditPage - 1) * 50, take: 50, include: { user: { select: { email: true } } } }), prisma.auditLog.count({ where })]);
+        const [data, count] = await Promise.all([prisma.platformAuditLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (auditPage - 1) * 50, take: 50, include: { user: { select: { email: true } } } }), prisma.platformAuditLog.count({ where })]);
         auditTotal = count;
         rows = data.map((entry) => ({ Time: entry.createdAt.toLocaleString("en-IN"), Actor: entry.user?.email ?? "System", Action: entry.action, Entity: `${entry.entity} ${entry.entityId ?? ""}`.trim(), Result: entry.result ?? "Recorded", Request: entry.requestId ?? "â€”" }));
         emptyMessage = "No audit events have been recorded."; break;
@@ -145,7 +147,7 @@ export default async function SuperAdminModulePage({ params, searchParams }: { p
   }
 
   if (["deletion", "support-access", "billing", "branding", "domains", "notifications"].includes(section)) {
-    try { institutions = await prisma.institution.findMany({ where: { archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 500 }); } catch { error = true; }
+    try { institutions = await prisma.platformInstitution.findMany({ where: { archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 500 }); } catch { error = true; }
   }
   if (section === "billing") {
     try { plans = await prisma.subscriptionPlan.findMany({ where: { isActive: true, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 100 }); } catch { error = true; }

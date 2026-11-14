@@ -33,13 +33,13 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
   const data = parsed.data;
   try {
     await prisma.$transaction(async (tx) => {
-      const institution = await tx.institution.create({ data: {
+      const institution = await tx.platformInstitution.create({ data: {
         name: data.name, code: data.code || null, slug: data.slug, type: data.type,
         email: data.email || null, phone: data.phone || null, address: data.address || null,
         city: data.city || null, state: data.state || null, postalCode: data.postalCode || null,
         country: data.country, website: data.website || null,
       } });
-      await tx.auditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_CREATED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { slug: institution.slug } } });
+      await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_CREATED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { slug: institution.slug } } });
     });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "That institution code or slug is already in use.", success: null };
@@ -58,13 +58,13 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the institution details.", success: null };
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.institution.update({ where: { id: id.data, archivedAt: null }, data: {
+      await tx.platformInstitution.update({ where: { id: id.data, archivedAt: null }, data: {
         name: parsed.data.name, code: parsed.data.code || null, slug: parsed.data.slug,
         type: parsed.data.type, email: parsed.data.email || null, phone: parsed.data.phone || null,
         address: parsed.data.address || null, city: parsed.data.city || null, state: parsed.data.state || null,
         postalCode: parsed.data.postalCode || null, country: parsed.data.country, website: parsed.data.website || null,
       } });
-      await tx.auditLog.create({ data: { userId: actor.id, institutionId: id.data, action: "INSTITUTION_UPDATED", entity: "Institution", entityId: id.data, result: "SUCCESS" } });
+      await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: id.data, action: "INSTITUTION_UPDATED", entity: "Institution", entityId: id.data, result: "SUCCESS" } });
     });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "That institution code or slug is already in use.", success: null };
@@ -80,11 +80,11 @@ export async function updateInstitutionStatus(formData: FormData) {
   const actor = await requireSuperAdmin();
   const parsed = z.object({ id: z.uuid(), status: z.enum(["ACTIVE", "SUSPENDED"]) }).safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) throw new Error("Invalid institution status request.");
-  const institution = await prisma.institution.findUnique({ where: { id: parsed.data.id }, select: { id: true, status: true, archivedAt: true } });
+  const institution = await prisma.platformInstitution.findUnique({ where: { id: parsed.data.id }, select: { id: true, status: true, archivedAt: true } });
   if (!institution || institution.archivedAt) throw new Error("Institution not found or archived.");
   await prisma.$transaction(async (tx) => {
-    await tx.institution.update({ where: { id: institution.id }, data: { status: parsed.data.status } });
-    await tx.auditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: parsed.data.status === "ACTIVE" ? "INSTITUTION_ACTIVATED" : "INSTITUTION_SUSPENDED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status, status: parsed.data.status } } });
+    await tx.platformInstitution.update({ where: { id: institution.id }, data: { status: parsed.data.status } });
+    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: parsed.data.status === "ACTIVE" ? "INSTITUTION_ACTIVATED" : "INSTITUTION_SUSPENDED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status, status: parsed.data.status } } });
   });
   revalidatePath("/admin");
   revalidatePath("/admin/institutions");
@@ -95,11 +95,11 @@ export async function archiveInstitution(formData: FormData) {
   const actor = await requireSuperAdmin();
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) throw new Error("Invalid institution request.");
-  const institution = await prisma.institution.findUnique({ where: { id: id.data }, select: { id: true, status: true, archivedAt: true } });
+  const institution = await prisma.platformInstitution.findUnique({ where: { id: id.data }, select: { id: true, status: true, archivedAt: true } });
   if (!institution || institution.archivedAt) throw new Error("Institution not found or already archived.");
   await prisma.$transaction(async (tx) => {
-    await tx.institution.update({ where: { id: institution.id }, data: { status: "ARCHIVED", archivedAt: new Date() } });
-    await tx.auditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_ARCHIVED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status } } });
+    await tx.platformInstitution.update({ where: { id: institution.id }, data: { status: "ARCHIVED", archivedAt: new Date() } });
+    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_ARCHIVED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status } } });
   });
   revalidatePath("/admin");
   revalidatePath("/admin/institutions");
@@ -113,7 +113,7 @@ export async function setInstitutionFeatureOverride(formData: FormData) {
   if (expiresAt && (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date())) throw new Error("Override expiry must be a future date.");
   await prisma.$transaction(async (tx) => {
     await tx.institutionFeatureOverride.upsert({ where: { institutionId_featureId: { institutionId: input.data.institutionId, featureId: input.data.featureId } }, create: { institutionId: input.data.institutionId, featureId: input.data.featureId, enabled: input.data.enabled === "true", reason: input.data.reason, expiresAt }, update: { enabled: input.data.enabled === "true", reason: input.data.reason, expiresAt } });
-    await tx.auditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "INSTITUTION_FEATURE_OVERRIDE_CHANGED", entity: "InstitutionFeatureOverride", entityId: input.data.featureId, result: "SUCCESS", metadata: { enabled: input.data.enabled === "true", expiresAt: expiresAt?.toISOString() ?? null, reason: input.data.reason } } });
+    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "INSTITUTION_FEATURE_OVERRIDE_CHANGED", entity: "InstitutionFeatureOverride", entityId: input.data.featureId, result: "SUCCESS", metadata: { enabled: input.data.enabled === "true", expiresAt: expiresAt?.toISOString() ?? null, reason: input.data.reason } } });
   });
   revalidatePath(`/admin/institutions/${input.data.institutionId}`);
   revalidatePath("/admin/modules");

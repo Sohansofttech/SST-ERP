@@ -10,7 +10,7 @@ export const instant = false;
 export default async function InstitutionDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   await requireSuperAdmin();
   const { id } = await params;
-  const institution = await prisma.institution.findUnique({ where: { id }, include: {
+  const institution = await prisma.platformInstitution.findUnique({ where: { id }, include: {
     memberships: { take: 20, orderBy: { createdAt: "desc" }, include: { user: { select: { id: true, name: true, email: true, status: true } } } },
     subscriptions: { take: 10, orderBy: { createdAt: "desc" }, include: { plan: { select: { name: true, code: true } } } },
     usageMetrics: { take: 10, orderBy: { measuredAt: "desc" } },

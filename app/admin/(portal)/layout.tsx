@@ -5,6 +5,7 @@ import { LogoutButton } from "@/components/super-admin/logout-button";
 import { hasSuperAdminRole } from "@/lib/super-admin/authorization";
 import { createClient } from "@/lib/supabase/server";
 import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
+import { connection } from "next/server";
 import "../super-admin.css";
 
 export const metadata: Metadata = {
@@ -12,10 +13,14 @@ export const metadata: Metadata = {
   description: "Platform administration dashboard for SST-ERP.",
 };
 
+export const instant = false;
+
 export default async function ProtectedAdminLayout({ children }: LayoutProps<"/admin">) {
   if (isDevelopmentBypassEnabled()) {
     return <SuperAdminShell userEmail="No authenticated user" developmentMode>{children}</SuperAdminShell>;
   }
+
+  await connection();
 
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();

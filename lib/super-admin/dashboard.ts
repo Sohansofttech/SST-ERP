@@ -24,24 +24,24 @@ export async function getDashboardSummary(filter?: { from?: Date; until?: Date }
     openSupportTickets,
     storageMetric,
   ] = await Promise.all([
-    prisma.institution.count(),
-    prisma.institution.count({ where: { status: "ACTIVE" } }),
-    prisma.institution.count({ where: { status: "SUSPENDED" } }),
-    prisma.institution.count({ where: { status: "PENDING" } }),
-    prisma.user.count(),
+    prisma.platformInstitution.count(),
+    prisma.platformInstitution.count({ where: { status: "ACTIVE" } }),
+    prisma.platformInstitution.count({ where: { status: "SUSPENDED" } }),
+    prisma.platformInstitution.count({ where: { status: "PENDING" } }),
+    prisma.platformUser.count(),
     prisma.institutionSubscription.count({ where: { status: "ACTIVE", startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] } }),
     prisma.institutionSubscription.count({ where: { OR: [{ status: "EXPIRED" }, { status: "ACTIVE", endsAt: { lte: now } }] } }),
     prisma.institutionSubscription.findMany({
       where: { status: "ACTIVE", startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
       select: { plan: { select: { price: true, currency: true, billingCycle: true, customCycleDays: true } } },
     }),
-    prisma.institution.findMany({
+    prisma.platformInstitution.findMany({
       where: activityPeriod,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { id: true, name: true, type: true, status: true, createdAt: true },
     }),
-    prisma.auditLog.findMany({
+    prisma.platformAuditLog.findMany({
       where: activityPeriod,
       orderBy: { createdAt: "desc" },
       take: 6,
